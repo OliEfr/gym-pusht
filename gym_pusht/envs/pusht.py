@@ -22,6 +22,8 @@ from pymunk.vec2d import Vec2d
 
 from .pymunk_override import DrawOptions
 
+from lerobot.datasets.transforms import draw_lightgreen_square
+
 
 RENDER_MODES = ["rgb_array"]
 if os.environ.get("MUJOCO_GL") != "egl":
@@ -149,6 +151,7 @@ class PushTEnv(gym.Env):
         visualization_width=680,
         visualization_height=680,
         gaussian_blur=None,
+        CoverGreenT=None,
     ):
         super().__init__()
         # Observations
@@ -161,6 +164,7 @@ class PushTEnv(gym.Env):
         self.visualization_width = visualization_width
         self.visualization_height = visualization_height
         self.gaussian_blur = gaussian_blur
+        self.CoverGreenT = CoverGreenT
 
         # Initialize spaces
         self._initialize_observation_space()
@@ -337,6 +341,11 @@ class PushTEnv(gym.Env):
         if self.gaussian_blur is not None:
             img = torch.from_numpy(img).permute(2, 0, 1)
             img = gaussian_blur(img, kernel_size=self.gaussian_blur["kernel_size"], sigma=self.gaussian_blur["sigma"])
+            img = img.permute(1, 2, 0).cpu().numpy()
+            
+        if self.CoverGreenT is not None:
+            img = torch.from_numpy(img).permute(2, 0, 1)
+            img = draw_lightgreen_square(img)
             img = img.permute(1, 2, 0).cpu().numpy()
 
         return img
