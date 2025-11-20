@@ -6,6 +6,9 @@ import cv2
 import gymnasium as gym
 import numpy as np
 
+import torch
+from torchvision.transforms.functional import gaussian_blur
+
 with warnings.catch_warnings():
     # Filter out DeprecationWarnings raised from pkg_resources
     warnings.filterwarnings("ignore", "pkg_resources is deprecated as an API", category=DeprecationWarning)
@@ -18,6 +21,7 @@ from gymnasium import spaces
 from pymunk.vec2d import Vec2d
 
 from .pymunk_override import DrawOptions
+
 
 RENDER_MODES = ["rgb_array"]
 if os.environ.get("MUJOCO_GL") != "egl":
@@ -144,6 +148,7 @@ class PushTEnv(gym.Env):
         observation_height=96,
         visualization_width=680,
         visualization_height=680,
+        gaussian_blur=None,
     ):
         super().__init__()
         # Observations
@@ -155,6 +160,7 @@ class PushTEnv(gym.Env):
         self.observation_height = observation_height
         self.visualization_width = visualization_width
         self.visualization_height = visualization_height
+        self.gaussian_blur = gaussian_blur
 
         # Initialize spaces
         self._initialize_observation_space()
@@ -328,6 +334,11 @@ class PushTEnv(gym.Env):
                 markerSize=marker_size,
                 thickness=thickness,
             )
+        if self.gaussian_blur is not None:
+            img = torch.from_numpy(img).permute(2, 0, 1)
+            img = gaussian_blur(img, kernel_size=self.gaussian_blur["kernel_size"], sigma=self.gaussian_blur["sigma"])
+            img = img.permute(1, 2, 0).cpu().numpy()
+
         return img
 
     def render(self):
