@@ -1,7 +1,7 @@
 import collections
 import os
 import warnings
-
+from typing import Literal
 import cv2
 import gymnasium as gym
 import numpy as np
@@ -152,6 +152,7 @@ class PushTEnv(gym.Env):
         visualization_height=680,
         gaussian_blur=None,
         CoverGreenT=None,
+        coarsity: Literal["coarse", "fine"] | None = None
     ):
         super().__init__()
         # Observations
@@ -189,6 +190,10 @@ class PushTEnv(gym.Env):
         self._last_action = None
 
         self.success_threshold = 0.95  # 95% coverage
+        self.angle_threshold = np.pi / 18  # coarse success, fine reset
+        self.distance_threshold = 50  # coarse success, fine reset
+
+        self.coarsity = coarsity
 
     def _initialize_observation_space(self):
         if self.obs_type == "state":
@@ -287,6 +292,13 @@ class PushTEnv(gym.Env):
         coverage = self._get_coverage()
         reward = np.clip(coverage / self.success_threshold, 0.0, 1.0)
         terminated = is_success = coverage > self.success_threshold
+        if self.coarsity == "coarse":
+            angle_diff = np.abs(self.block.angle % (2 * np.pi) - self.goal_pose[2])
+            angle_diff = np.pi - np.abs(angle_diff - np.pi)
+            distance = np.linalg.norm(self.goal_pose[:2] - self.block.position)
+            terminated = is_success = distance < self.distance_threshold and (
+                angle_diff < self.angle_threshold
+            )
 
         observation = self.get_obs()
         info = self._get_info()
@@ -313,6 +325,44 @@ class PushTEnv(gym.Env):
                     self.np_random.uniform(-np.pi, np.pi),
                 ]
             )
+            if self.coarsity == "fine":
+                state[2] = self.np_random.integers(
+                    self.goal_pose[0] - self.distance_threshold * 1.25, # add margin for overlap
+                    self.goal_pose[0] + self.distance_threshold * 1.25,
+                )
+                state[3] = self.np_random.integers(
+                    self.goal_pose[1] - self.distance_threshold * 1.25,
+                    self.goal_pose[1] + self.distance_threshold * 1.25,
+                )
+                state[4] = self.np_random.uniform(
+                    np.pi / 4 - self.angle_threshold * 1.5,
+                    np.pi / 4 + self.angle_threshold * 1.5,
+                )
+            if self.coarsity == "coarse":
+                # exactly opposite of fine 
+                # x
+                if self.np_random.random() < 0.5:
+                    state[2] = self.np_random.integers(
+                        100,
+                        self.goal_pose[0] - self.distance_threshold,
+                    )
+                else:
+                    state[2] = self.np_random.integers(
+                        self.goal_pose[0] + self.distance_threshold,
+                        400,
+                    )
+                # y
+                if self.np_random.random() < 0.5:
+                    state[3] = self.np_random.integers(
+                        100,
+                        self.goal_pose[1] - self.distance_threshold,
+                    )
+                else:
+                    state[3] = self.np_random.integers(
+                        self.goal_pose[1] + self.distance_threshold,
+                        400,
+                    )
+                print(state[2], state[3])
         self._set_state(state)
 
         observation = self.get_obs()
@@ -363,7 +413,7 @@ class PushTEnv(gym.Env):
             img = torch.from_numpy(img).permute(2, 0, 1)
             img = gaussian_blur(img, kernel_size=self.gaussian_blur["kernel_size"], sigma=self.gaussian_blur["sigma"])
             img = img.permute(1, 2, 0).cpu().numpy()
-            
+
         if self.CoverGreenT is not None:
             img = torch.from_numpy(img).permute(2, 0, 1)
             img = draw_lightgreen_square(img)
