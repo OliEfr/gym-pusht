@@ -362,7 +362,6 @@ class PushTEnv(gym.Env):
                         self.goal_pose[1] + self.distance_threshold,
                         400,
                     )
-                print(state[2], state[3])
         self._set_state(state)
 
         observation = self.get_obs()
