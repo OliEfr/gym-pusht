@@ -8,6 +8,7 @@ import numpy as np
 
 import torch
 from torchvision.transforms.functional import gaussian_blur
+import torchvision
 
 with warnings.catch_warnings():
     # Filter out DeprecationWarnings raised from pkg_resources
@@ -257,6 +258,11 @@ class PushTEnv(gym.Env):
                         shape=(self.observation_height, self.observation_width, 3),
                         dtype=np.uint8,
                     ),
+                    "block_pos": spaces.Box(
+                        low=np.array([0, 0]),
+                        high=np.array([512, 512]),
+                        dtype=np.float64,
+                    ),
                 }
             )
         else:
@@ -296,9 +302,9 @@ class PushTEnv(gym.Env):
             angle_diff = np.abs(self.block.angle % (2 * np.pi) - self.goal_pose[2])
             angle_diff = np.pi - np.abs(angle_diff - np.pi)
             distance = np.linalg.norm(self.goal_pose[:2] - self.block.position)
-            terminated = is_success = distance < self.distance_threshold and (
+            terminated = is_success = bool(distance < self.distance_threshold and (
                 angle_diff < self.angle_threshold
-            )
+            ))
 
         observation = self.get_obs()
         info = self._get_info()
@@ -339,7 +345,7 @@ class PushTEnv(gym.Env):
                     np.pi / 4 + self.angle_threshold * 1.5,
                 )
             if self.coarsity == "coarse":
-                # exactly opposite of fine 
+                # exactly opposite of fine
                 # x
                 if self.np_random.random() < 0.5:
                     state[2] = self.np_random.integers(
@@ -494,6 +500,7 @@ class PushTEnv(gym.Env):
                 "environment_state": self.get_keypoints(self._block_shapes).flatten(),
                 "agent_pos": np.array(self.agent.position),
                 "pixels": pixels,
+                "block_pos": np.array(self.block.position),
             }
 
     @staticmethod
